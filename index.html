@@ -2,8 +2,13 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>基金实时净值估算 | Fund Real-time NAV</title>
+    <!-- iOS 关键配置 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://api.dicebear.com/7.x/initials/svg?seed=基金&backgroundColor=3b82f6&textColor=ffffff">
+    
+    <title>基金净值</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -12,6 +17,11 @@
             font-family: 'Inter', sans-serif;
             background: #0f172a;
             color: #e2e8f0;
+            /* 适配刘海屏 */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
         }
         .mono { font-family: 'JetBrains Mono', monospace; }
         .glass {
@@ -50,6 +60,11 @@
         .time-slot.active {
             background: rgba(59, 130, 246, 0.2);
             border-color: #3b82f6;
+        }
+        /* iOS 触摸优化 */
+        button, input, select {
+            -webkit-appearance: none;
+            touch-action: manipulation;
         }
     </style>
 </head>
@@ -930,3 +945,4 @@
     </script>
 </body>
 </html>
+
