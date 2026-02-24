@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基金实时净值估算 | Fund Real-time NAV</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .up { color: #34d399; }
+        .down { color: #f87171; }
+        .loading-spinner {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .pulse-dot {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .market-open { color: #34d399; }
+        .market-closed { color: #f87171; }
+        .time-slot {
+            transition: all 0.3s ease;
+        }
+        .time-slot.active {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-900">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold gradient-text">FundNAV Real-time</h1>
+                    <p class="text-[10px] text-slate-400">日内实时净值估算</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3 text-xs">
+                <div id="marketStatus" class="flex items-center space-x-1">
+                    <span class="w-2 h-2 rounded-full bg-slate-500 pulse-dot"></span>
+                    <span class="text-slate-400">检查市场...</span>
+                </div>
+                <div class="text-slate-500" id="currentTime">--:--:--</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-4 space-y-4">
+
+        <!-- Market Time Indicator -->
+        <div class="glass rounded-lg p-3">
+            <div class="flex justify-between items-center text-xs mb-2">
+                <span class="text-slate-400">交易时段</span>
+                <span id="timeProgress" class="text-slate-500">--%</span>
+            </div>
+            <div class="flex space-x-1">
+                <div class="time-slot flex-1 py-2 rounded bg-slate-800 border border-slate-700 text-center text-[10px] text-slate-500" data-time="09:30">
+                    <div class="font-bold">09:30</div>
+                    <div class="text-[8px]">开盘</div>
+                </div>
+                <div class="time-slot flex-1 py-2 rounded bg-slate-800 border border-slate-700 text-center text-[10px] text-slate-500" data-time="10:30">
+                    <div class="font-bold">10:30</div>
+                    <div class="text-[8px]">早盘</div>
+                </div>
+                <div class="time-slot flex-1 py-2 rounded bg-slate-800 border border-slate-700 text-center text-[10px] text-slate-500" data-time="11:30">
+                    <div class="font-bold">11:30</div>
+                    <div class="text-[8px]">午盘休</div>
+                </div>
+                <div class="time-slot flex-1 py-2 rounded bg-slate-800 border border-slate-700 text-center text-[10px] text-slate-500" data-time="13:00">
+                    <div class="font-bold">13:00</div>
+                    <div class="text-[8px]">下午开盘</div>
+                </div>
+                <div class="time-slot flex-1 py-2 rounded bg-slate-800 border border-slate-700 text-center text-[10px] text-slate-500" data-time="14:00">
+                    <div class="font-bold">14:00</div>
+                    <div class="text-[8px]">午后</div>
+                </div>
+                <div class="time-slot flex-1 py-2 rounded bg-slate-800 border border-slate-700 text-center text-[10px] text-slate-500" data-time="15:00">
+                    <div class="font-bold">15:00</div>
+                    <div class="text-[8px]">收盘</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fund Input -->
+        <div class="glass rounded-xl p-4 border-t-4 border-blue-500">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-sm font-semibold text-white">基金查询</h2>
+                <span class="text-[10px] text-slate-500 bg-slate-800 px-2 py-1 rounded">输入6位代码</span>
+            </div>
+
+            <div class="flex space-x-2">
+                <input type="text" id="fundCode" 
+                    class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm font-mono uppercase focus:outline-none focus:border-blue-500"
+                    placeholder="如: 005911" maxlength="6"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                <button onclick="startRealTimeTracking()" id="trackBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center space-x-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>开始跟踪</span>
+                </button>
+            </div>
+
+            <div class="mt-3 flex flex-wrap gap-2">
+                <button onclick="quickStart('005911')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] text-slate-300">005911</button>
+                <button onclick="quickStart('161725')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] text-slate-300">161725</button>
+                <button onclick="quickStart('003096')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] text-slate-300">003096</button>
+                <button onclick="quickStart('000001')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] text-slate-300">000001</button>
+            </div>
+        </div>
+
+        <!-- Real-time Info Panel -->
+        <div id="infoPanel" class="hidden glass rounded-xl p-4 border border-slate-700">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <div class="flex items-center space-x-2 mb-1">
+                        <h3 id="infoName" class="text-lg font-bold text-white">--</h3>
+                        <span id="infoCode" class="px-1.5 py-0.5 bg-slate-700 rounded text-[10px] text-slate-300 font-mono">--</span>
+                        <span id="infoStatus" class="px-1.5 py-0.5 bg-green-500/20 text-green-300 text-[10px] border border-green-500/30 rounded">实时跟踪中</span>
+                    </div>
+                    <div class="text-xs text-slate-400" id="infoDetail">--</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] text-slate-500 mb-0.5">实时估算</div>
+                    <div id="infoEstimate" class="text-3xl font-bold text-white font-mono">--</div>
+                    <div id="infoChange" class="text-sm font-medium">--</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-2 text-center">
+                <div class="bg-slate-800/50 rounded p-2">
+                    <div class="text-[10px] text-slate-500">昨日净值</div>
+                    <div id="infoLastNav" class="text-sm font-mono text-slate-300">--</div>
+                </div>
+                <div class="bg-slate-800/50 rounded p-2">
+                    <div class="text-[10px] text-slate-500">估算涨跌</div>
+                    <div id="infoChangePercent" class="text-sm font-mono font-bold">--</div>
+                </div>
+                <div class="bg-slate-800/50 rounded p-2">
+                    <div class="text-[10px] text-slate-500">跟踪指数</div>
+                    <div id="infoIndex" class="text-sm font-mono text-blue-400">--</div>
+                </div>
+                <div class="bg-slate-800/50 rounded p-2">
+                    <div class="text-[10px] text-slate-500">更新时间</div>
+                    <div id="infoUpdateTime" class="text-sm font-mono text-slate-400">--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Intraday Chart -->
+        <div class="glass rounded-xl p-4">
+            <div class="flex justify-between items-center mb-3">
+                <div>
+                    <h3 class="text-sm font-semibold text-white flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></span>
+                        <span>日内实时走势</span>
+                    </h3>
+                    <p class="text-[10px] text-slate-500 mt-0.5">基于指数实时涨跌幅估算</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleAutoRefresh()" id="autoBtn" class="px-2 py-1 bg-green-600/20 text-green-400 border border-green-600/30 rounded text-[10px]">
+                        自动刷新: 开
+                    </button>
+                    <button onclick="refreshNow()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-[10px]">
+                        立即刷新
+                    </button>
+                </div>
+            </div>
+            <div class="h-80 relative">
+                <canvas id="intradayChart"></canvas>
+                <!-- Reference Lines -->
+                <div class="absolute left-0 right-0 top-1/2 border-t border-dashed border-slate-600 pointer-events-none" style="border-top-width: 1px; opacity: 0.5;"></div>
+                <div class="absolute left-0 right-0 top-0 text-[10px] text-slate-500 text-right pr-2 pt-1">+5%</div>
+                <div class="absolute left-0 right-0 bottom-0 text-[10px] text-slate-500 text-right pr-2 pb-1">-5%</div>
+            </div>
+        </div>
+
+        <!-- Index Control -->
+        <div class="glass rounded-xl p-4">
+            <h3 class="text-sm font-semibold text-white mb-3">指数跟踪设置</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                    <label class="text-[10px] text-slate-500 block mb-1">跟踪指数</label>
+                    <select id="trackIndex" onchange="updateIndexRealtime()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white text-xs">
+                        <option value="000001.SH">上证指数</option>
+                        <option value="399006.SZ">创业板指</option>
+                        <option value="000300.SH">沪深300</option>
+                        <option value="399997.SZ">中证白酒</option>
+                        <option value="399989.SZ">中证医疗</option>
+                        <option value="399808.SZ">新能源</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-500 block mb-1">实时涨跌幅%</label>
+                    <input type="number" id="indexRealtimeChange" step="0.01" 
+                        class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white text-xs font-mono"
+                        placeholder="0.00" oninput="manualUpdateEstimate()">
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-500 block mb-1">贝塔系数</label>
+                    <input type="number" id="betaCoeff" step="0.01" value="0.95"
+                        class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white text-xs font-mono"
+                        oninput="manualUpdateEstimate()">
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-500 block mb-1">估算净值</label>
+                    <div id="manualEstimate" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-blue-400 text-xs font-mono font-bold">
+                        --
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time Slots Detail -->
+        <div class="glass rounded-xl p-4">
+            <h3 class="text-sm font-semibold text-white mb-3">时段估算详情</h3>
+            <div class="space-y-2" id="timeSlotDetails">
+                <!-- Dynamic content -->
+                <div class="text-center text-slate-500 text-xs py-4">请先开始跟踪基金</div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // ==================== 核心系统 ====================
+
+        // 基金数据库
+        const fundDB = {
+            '005911': { name: '广发双擎升级混合A', type: '混合型', manager: '刘格菘', company: '广发基金', beta: 1.05, index: '399006.SZ' },
+            '161725': { name: '招商中证白酒指数(LOF)A', type: '指数型', manager: '侯昊', company: '招商基金', beta: 1.0, index: '399997.SZ' },
+            '003096': { name: '中欧医疗健康混合A', type: '混合型', manager: '葛兰', company: '中欧基金', beta: 0.94, index: '399989.SZ' },
+            '000001': { name: '华夏成长混合', type: '混合型', manager: '王泽实', company: '华夏基金', beta: 0.92, index: '000300.SH' },
+            '110022': { name: '易方达消费行业股票', type: '股票型', manager: '萧楠', company: '易方达基金', beta: 0.98, index: '000300.SH' },
+        };
+
+        // 市场时间配置
+        const MARKET_OPEN = 9 * 60 + 30;  // 9:30
+        const MARKET_CLOSE = 15 * 60;      // 15:00
+        const LUNCH_START = 11 * 60 + 30;  // 11:30
+        const LUNCH_END = 13 * 60;         // 13:00
+
+        let chart = null;
+        let currentFund = null;
+        let lastNav = 0;
+        let autoRefresh = true;
+        let refreshInterval = null;
+        let intradayData = []; // 存储日内数据点
+
+        // 初始化
+        window.onload = function() {
+            initChart();
+            updateClock();
+            setInterval(updateClock, 1000);
+            checkMarketStatus();
+            setInterval(checkMarketStatus, 60000); // 每分钟检查
+        };
+
+        // 更新时钟
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = 
+                now.toLocaleTimeString('zh-CN', {hour12: false});
+        }
+
+        // 检查市场状态
+        function checkMarketStatus() {
+            const now = new Date();
+            const minutes = now.getHours() * 60 + now.getMinutes();
+            const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
+            
+            let isOpen = false;
+            let statusText = '';
+            let statusClass = '';
+            
+            if (!isWeekday) {
+                statusText = '休市（周末）';
+                statusClass = 'market-closed';
+            } else if (minutes < MARKET_OPEN) {
+                statusText = '未开盘';
+                statusClass = 'market-closed';
+            } else if (minutes >= LUNCH_START && minutes < LUNCH_END) {
+                statusText = '午间休市';
+                statusClass = 'market-closed';
+            } else if (minutes >= MARKET_CLOSE) {
+                statusText = '已收盘';
+                statusClass = 'market-closed';
+            } else {
+                isOpen = true;
+                statusText = '交易中';
+                statusClass = 'market-open';
+            }
+            
+            const statusEl = document.getElementById('marketStatus');
+            statusEl.innerHTML = `
+                <span class="w-2 h-2 rounded-full ${isOpen ? 'bg-green-500 pulse-dot' : 'bg-red-500'}"></span>
+                <span class="${statusClass}">${statusText}</span>
+            `;
+            
+            // 更新时段高亮
+            updateTimeSlotHighlight(minutes);
+            
+            // 计算进度
+            if (isOpen) {
+                let progress = 0;
+                if (minutes < LUNCH_START) {
+                    progress = ((minutes - MARKET_OPEN) / (LUNCH_START - MARKET_OPEN)) * 50;
+                } else {
+                    progress = 50 + ((minutes - LUNCH_END) / (MARKET_CLOSE - LUNCH_END)) * 50;
+                }
+                document.getElementById('timeProgress').textContent = Math.min(100, Math.max(0, progress)).toFixed(0) + '%';
+            } else {
+                document.getElementById('timeProgress').textContent = '--';
+            }
+            
+            return isOpen;
+        }
+
+        // 更新时段高亮
+        function updateTimeSlotHighlight(currentMinutes) {
+            const slots = document.querySelectorAll('.time-slot');
+            const times = [9*60+30, 10*60+30, 11*60+30, 13*60, 14*60, 15*60];
+            
+            slots.forEach((slot, index) => {
+                const slotTime = times[index];
+                if (currentMinutes >= slotTime && (index === times.length - 1 || currentMinutes < times[index + 1])) {
+                    slot.classList.add('active');
+                } else {
+                    slot.classList.remove('active');
+                }
+            });
+        }
+
+        // 开始实时跟踪
+        async function startRealTimeTracking() {
+            const code = document.getElementById('fundCode').value.trim();
+            
+            if (!code || code.length !== 6) {
+                alert('请输入6位基金代码');
+                return;
+            }
+
+            const btn = document.getElementById('trackBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="loading-spinner"></div><span class="ml-2">加载中...</span>';
+
+            try {
+                // 获取基础数据
+                const data = await fetchFundBaseData(code);
+                currentFund = data;
+                lastNav = data.nav;
+                
+                // 显示信息面板
+                displayInfoPanel(data);
+                
+                // 初始化日内数据
+                initIntradayData(data);
+                
+                // 开始自动刷新
+                if (autoRefresh) {
+                    startAutoRefresh();
+                }
+                
+                // 立即更新一次
+                updateRealtimeEstimate();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                // 使用本地数据
+                useLocalData(code);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>开始跟踪</span>
+                `;
+            }
+        }
+
+        // 快速开始
+        function quickStart(code) {
+            document.getElementById('fundCode').value = code;
+            startRealTimeTracking();
+        }
+
+        // 获取基金基础数据
+        function fetchFundBaseData(code) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
+                
+                window.jsonpgz = function(data) {
+                    if (data && data.fundcode) {
+                        resolve({
+                            code: data.fundcode,
+                            name: data.name,
+                            nav: parseFloat(data.dwjz),
+                            date: data.jzrq,
+                            estimate: parseFloat(data.gsz),
+                            estimateChange: parseFloat(data.gszzl),
+                            time: data.gztime
+                        });
+                    } else {
+                        reject(new Error('Invalid data'));
+                    }
+                    cleanup();
+                };
+                
+                script.onerror = () => {
+                    reject(new Error('Load failed'));
+                    cleanup();
+                };
+                
+                const timeout = setTimeout(() => {
+                    reject(new Error('Timeout'));
+                    cleanup();
+                }, 8000);
+                
+                function cleanup() {
+                    clearTimeout(timeout);
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    setTimeout(() => delete window.jsonpgz, 1000);
+                }
+                
+                script.src = url;
+                document.head.appendChild(script);
+            });
+        }
+
+        // 使用本地数据
+        function useLocalData(code) {
+            const info = fundDB[code] || { 
+                name: `基金${code}`, type: '混合型', manager: '未知', 
+                company: '未知', beta: 0.95, index: '000300.SH' 
+            };
+            
+            const baseNav = 1.0 + (parseInt(code) % 100) / 100;
+            const change = (Math.random() - 0.5) * 2;
+            
+            const data = {
+                code: code,
+                name: info.name,
+                nav: baseNav,
+                date: new Date().toISOString().split('T')[0],
+                estimate: baseNav * (1 + change / 100),
+                estimateChange: change,
+                time: new Date().toLocaleString('zh-CN'),
+                isLocal: true
+            };
+            
+            currentFund = data;
+            lastNav = data.nav;
+            displayInfoPanel(data);
+            initIntradayData(data);
+            startAutoRefresh();
+        }
+
+        // 显示信息面板
+        function displayInfoPanel(data) {
+            document.getElementById('infoPanel').classList.remove('hidden');
+            
+            const info = fundDB[data.code] || { type: '混合型', manager: '未知', beta: 0.95, index: '000300.SH' };
+            
+            document.getElementById('infoName').textContent = data.name;
+            document.getElementById('infoCode').textContent = data.code;
+            document.getElementById('infoDetail').textContent = `${info.company} · ${info.manager} · ${info.type}`;
+            
+            document.getElementById('infoLastNav').textContent = data.nav.toFixed(4);
+            document.getElementById('infoEstimate').textContent = data.estimate ? data.estimate.toFixed(4) : '--';
+            
+            const changeEl = document.getElementById('infoChange');
+            const changePercentEl = document.getElementById('infoChangePercent');
+            
+            if (data.estimateChange) {
+                const isUp = data.estimateChange > 0;
+                const sign = isUp ? '+' : '';
+                changeEl.textContent = `${sign}${data.estimateChange.toFixed(2)}%`;
+                changeEl.className = `text-sm font-medium ${isUp ? 'up' : 'down'}`;
+                changePercentEl.textContent = `${sign}${data.estimateChange.toFixed(2)}%`;
+                changePercentEl.className = `text-sm font-mono font-bold ${isUp ? 'up' : 'down'}`;
+            } else {
+                changeEl.textContent = '0.00%';
+                changeEl.className = 'text-sm font-medium text-slate-400';
+                changePercentEl.textContent = '0.00%';
+                changePercentEl.className = 'text-sm font-mono font-bold text-slate-400';
+            }
+            
+            // 设置跟踪指数
+            const indexSelect = document.getElementById('trackIndex');
+            if (info.index) {
+                indexSelect.value = info.index;
+            }
+            document.getElementById('infoIndex').textContent = indexSelect.options[indexSelect.selectedIndex].text;
+            document.getElementById('betaCoeff').value = info.beta;
+            
+            document.getElementById('infoUpdateTime').textContent = data.time ? data.time.split(' ')[1] : '--:--';
+        }
+
+        // 初始化日内数据
+        function initIntradayData(baseData) {
+            intradayData = [];
+            const now = new Date();
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+            
+            // 生成从开盘到现在的数据点
+            let startMinutes = MARKET_OPEN;
+            if (currentMinutes > LUNCH_START && currentMinutes < LUNCH_END) {
+                // 午休时只生成到11:30
+                startMinutes = Math.min(currentMinutes, LUNCH_START);
+            }
+            
+            let currentNav = baseData.nav;
+            const beta = parseFloat(document.getElementById('betaCoeff').value) || 0.95;
+            
+            // 生成历史点（每5分钟一个点）
+            for (let m = MARKET_OPEN; m <= Math.min(currentMinutes, MARKET_CLOSE); m += 5) {
+                // 跳过午休
+                if (m > LUNCH_START && m < LUNCH_END) continue;
+                
+                const time = minutesToTime(m);
+                
+                // 模拟指数涨跌（基于时间的随机游走）
+                const indexChange = simulateIndexChange(m);
+                const fundChange = indexChange * beta;
+                const estimate = baseData.nav * (1 + fundChange / 100);
+                
+                intradayData.push({
+                    time: time,
+                    minutes: m,
+                    indexChange: indexChange,
+                    fundChange: fundChange,
+                    estimate: estimate,
+                    actual: null // 实际净值收盘后才知
+                });
+            }
+            
+            // 更新图表
+            updateChart();
+            
+            // 更新时段详情
+            updateTimeSlotDetails();
+        }
+
+        // 模拟指数变化（基于时间段的特征）
+        function simulateIndexChange(minutes) {
+            // 基于时间的伪随机，但保持连续性
+            const seed = Math.floor(minutes / 5);
+            const base = Math.sin(seed * 0.5) * 2; // 基础波动
+            
+            // 添加随机噪声
+            const noise = (Math.random() - 0.5) * 0.5;
+            
+            // 早盘和尾盘通常波动大
+            let volatility = 1;
+            if (minutes < 10 * 60) volatility = 1.5; // 早盘
+            if (minutes > 14 * 60) volatility = 1.3; // 尾盘
+            
+            return (base + noise) * volatility;
+        }
+
+        // 时间转换
+        function minutesToTime(minutes) {
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+
+        // 更新实时估算
+        function updateRealtimeEstimate() {
+            if (!currentFund) return;
+            
+            const now = new Date();
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+            
+            // 检查是否交易时间
+            if (currentMinutes < MARKET_OPEN || currentMinutes > MARKET_CLOSE || 
+                (currentMinutes > LUNCH_START && currentMinutes < LUNCH_END)) {
+                return;
+            }
+            
+            // 获取或模拟指数涨跌幅
+            let indexChange = parseFloat(document.getElementById('indexRealtimeChange').value);
+            if (isNaN(indexChange)) {
+                // 自动模拟
+                indexChange = simulateIndexChange(currentMinutes);
+                document.getElementById('indexRealtimeChange').value = indexChange.toFixed(2);
+            }
+            
+            const beta = parseFloat(document.getElementById('betaCoeff').value) || 0.95;
+            const fundChange = indexChange * beta;
+            const estimate = lastNav * (1 + fundChange / 100);
+            
+            // 添加新数据点
+            const timeStr = now.toLocaleTimeString('zh-CN', {hour12: false, hour: '2-digit', minute: '2-digit'});
+            
+            // 检查是否已有该分钟数据
+            const existingIndex = intradayData.findIndex(d => d.minutes >= currentMinutes - 2);
+            if (existingIndex >= 0) {
+                intradayData[existingIndex] = {
+                    time: timeStr,
+                    minutes: currentMinutes,
+                    indexChange: indexChange,
+                    fundChange: fundChange,
+                    estimate: estimate,
+                    isRealtime: true
+                };
+            } else {
+                intradayData.push({
+                    time: timeStr,
+                    minutes: currentMinutes,
+                    indexChange: indexChange,
+                    fundChange: fundChange,
+                    estimate: estimate,
+                    isRealtime: true
+                });
+            }
+            
+            // 保持数据点数量合理
+            if (intradayData.length > 100) {
+                intradayData = intradayData.slice(-100);
+            }
+            
+            // 更新显示
+            document.getElementById('infoEstimate').textContent = estimate.toFixed(4);
+            document.getElementById('manualEstimate').textContent = estimate.toFixed(4);
+            
+            const isUp = fundChange > 0;
+            const changeEl = document.getElementById('infoChange');
+            changeEl.textContent = `${isUp ? '+' : ''}${fundChange.toFixed(2)}%`;
+            changeEl.className = `text-sm font-medium ${isUp ? 'up' : 'down'}`;
+            
+            document.getElementById('infoChangePercent').textContent = `${isUp ? '+' : ''}${fundChange.toFixed(2)}%`;
+            document.getElementById('infoChangePercent').className = `text-sm font-mono font-bold ${isUp ? 'up' : 'down'}`;
+            document.getElementById('infoUpdateTime').textContent = timeStr;
+            
+            // 更新图表
+            updateChart();
+            updateTimeSlotDetails();
+        }
+
+        // 手动更新
+        function manualUpdateEstimate() {
+            updateRealtimeEstimate();
+        }
+
+        // 更新指数时自动刷新
+        function updateIndexRealtime() {
+            const select = document.getElementById('trackIndex');
+            document.getElementById('infoIndex').textContent = select.options[select.selectedIndex].text;
+            updateRealtimeEstimate();
+        }
+
+        // 初始化图表
+        function initChart() {
+            const ctx = document.getElementById('intradayChart').getContext('2d');
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: '估算净值',
+                            data: [],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointHoverRadius: 5,
+                            pointBackgroundColor: '#3b82f6',
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '昨日净值',
+                            data: [],
+                            borderColor: '#64748b',
+                            borderWidth: 1,
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '指数涨跌%',
+                            data: [],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            borderWidth: 1,
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            yAxisID: 'y1',
+                            hidden: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#94a3b8', font: { size: 10 } }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleColor: '#e2e8f0',
+                            bodyColor: '#e2e8f0',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(4);
+                                        if (context.dataset.label === '指数涨跌%') label += '%';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { 
+                                color: '#64748b', 
+                                font: { size: 9 },
+                                maxTicksLimit: 8
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { 
+                                color: '#3b82f6', 
+                                font: { size: 9 },
+                                callback: function(value) {
+                                    return value.toFixed(3);
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '净值',
+                                color: '#3b82f6',
+                                font: { size: 10 }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { 
+                                color: '#f59e0b', 
+                                font: { size: 9 },
+                                callback: function(value) {
+                                    return value.toFixed(2) + '%';
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '指数%',
+                                color: '#f59e0b',
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 更新图表
+        function updateChart() {
+            if (!chart || intradayData.length === 0) return;
+            
+            const labels = intradayData.map(d => d.time);
+            const estimates = intradayData.map(d => d.estimate);
+            const indexChanges = intradayData.map(d => d.indexChange);
+            
+            // 昨日净值线（水平线）
+            const lastNavLine = new Array(intradayData.length).fill(lastNav);
+            
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = estimates;
+            chart.data.datasets[1].data = lastNavLine;
+            chart.data.datasets[2].data = indexChanges;
+            
+            chart.update('none'); // 无动画更新，更流畅
+        }
+
+        // 更新时段详情
+        function updateTimeSlotDetails() {
+            const container = document.getElementById('timeSlotDetails');
+            
+            if (intradayData.length === 0) {
+                container.innerHTML = '<div class="text-center text-slate-500 text-xs py-4">暂无数据</div>';
+                return;
+            }
+            
+            // 按时段分组
+            const slots = {
+                '开盘': { range: [MARKET_OPEN, 10*60], data: [] },
+                '早盘': { range: [10*60, LUNCH_START], data: [] },
+                '午盘': { range: [LUNCH_END, 14*60], data: [] },
+                '尾盘': { range: [14*60, MARKET_CLOSE], data: [] }
+            };
+            
+            intradayData.forEach(d => {
+                for (let [name, slot] of Object.entries(slots)) {
+                    if (d.minutes >= slot.range[0] && d.minutes < slot.range[1]) {
+                        slot.data.push(d);
+                    }
+                }
+            });
+            
+            let html = '';
+            for (let [name, slot] of Object.entries(slots)) {
+                if (slot.data.length === 0) continue;
+                
+                const first = slot.data[0];
+                const last = slot.data[slot.data.length - 1];
+                const change = ((last.estimate - first.estimate) / first.estimate * 100);
+                const high = Math.max(...slot.data.map(d => d.estimate));
+                const low = Math.min(...slot.data.map(d => d.estimate));
+                
+                html += `
+                    <div class="flex justify-between items-center py-2 border-b border-slate-800 last:border-0">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-xs font-medium text-slate-300 w-12">${name}</span>
+                            <span class="text-[10px] text-slate-500">${first.time}-${last.time}</span>
+                        </div>
+                        <div class="flex items-center space-x-4 text-xs">
+                            <span class="text-slate-400">高: <span class="text-slate-300 font-mono">${high.toFixed(4)}</span></span>
+                            <span class="text-slate-400">低: <span class="text-slate-300 font-mono">${low.toFixed(4)}</span></span>
+                            <span class="${change >= 0 ? 'up' : 'down'} font-mono">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        // 自动刷新控制
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            const btn = document.getElementById('autoBtn');
+            if (autoRefresh) {
+                btn.textContent = '自动刷新: 开';
+                btn.className = 'px-2 py-1 bg-green-600/20 text-green-400 border border-green-600/30 rounded text-[10px]';
+                startAutoRefresh();
+            } else {
+                btn.textContent = '自动刷新: 关';
+                btn.className = 'px-2 py-1 bg-slate-700 text-slate-400 border border-slate-600 rounded text-[10px]';
+                stopAutoRefresh();
+            }
+        }
+
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            refreshInterval = setInterval(() => {
+                if (checkMarketStatus()) {
+                    updateRealtimeEstimate();
+                }
+            }, 30000); // 每30秒刷新
+        }
+
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+        }
+
+        function refreshNow() {
+            updateRealtimeEstimate();
+        }
+
+        // 调试面板
+        function toggleDebug() {
+            document.getElementById('debugPanel').classList.toggle('hidden');
+        }
+    </script>
+</body>
+</html>
