@@ -1,0 +1,2071 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>服装店智能财务系统 - Pro版</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0f0f1e;
+            --secondary: #1a1a2e;
+            --accent: #ff006e;
+            --success: #06ffa5;
+            --warning: #ffbe0b;
+            --info: #3a86ff;
+            --text: #eaeaea;
+            --glass: rgba(255, 255, 255, 0.05);
+            --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--primary);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            width: 150%;
+            height: 150%;
+            background: radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(255, 0, 110, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 20%, rgba(58, 134, 255, 0.15) 0%, transparent 50%);
+            animation: bgMove 20s ease-in-out infinite;
+        }
+
+        @keyframes bgMove {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(-5%, 5%) rotate(5deg); }
+            66% { transform: translate(5%, -5%) rotate(-5deg); }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 20px;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent), var(--success), var(--info));
+            animation: borderGlow 3s linear infinite;
+        }
+
+        @keyframes borderGlow {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(45deg, #fff, var(--success), var(--info));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--gradient-1);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: -1;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+        }
+
+        .stat-card:hover::before {
+            opacity: 0.1;
+        }
+
+        .stat-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, #fff, var(--success));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            background: var(--glass);
+            padding: 10px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .tab-btn {
+            flex: 1;
+            min-width: 120px;
+            padding: 15px 20px;
+            background: transparent;
+            border: 1px solid transparent;
+            color: #888;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .tab-btn:hover {
+            color: var(--text);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .tab-btn.active {
+            background: var(--gradient-1);
+            color: white;
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .tab-content {
+            display: none;
+            animation: slideIn 0.4s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 30px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--success);
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .feature-card {
+            background: rgba(0,0,0,0.2);
+            border: 2px dashed rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card:hover {
+            border-color: var(--accent);
+            background: rgba(255,0,110,0.05);
+            transform: translateY(-3px);
+        }
+
+        .feature-card.active {
+            border-color: var(--success);
+            background: rgba(6,255,165,0.05);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .feature-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .upload-area {
+            border: 3px dashed rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            transition: all 0.3s;
+            cursor: pointer;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .upload-area:hover {
+            border-color: var(--info);
+            background: rgba(58,134,255,0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--success);
+            background: rgba(6,255,165,0.1);
+            transform: scale(1.02);
+        }
+
+        .scanner-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 2px solid var(--accent);
+            box-shadow: 0 0 30px rgba(255,0,110,0.3);
+        }
+
+        #reader {
+            width: 100%;
+        }
+
+        .scan-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 250px;
+            height: 250px;
+            border: 2px solid var(--success);
+            border-radius: 20px;
+            pointer-events: none;
+            box-shadow: 0 0 20px rgba(6,255,165,0.5);
+        }
+
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            top: 0;
+            animation: scan 2s linear infinite;
+            box-shadow: 0 0 20px var(--accent);
+        }
+
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaa;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 14px 18px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--info);
+            box-shadow: 0 0 0 3px rgba(58,134,255,0.1);
+        }
+
+        .btn {
+            padding: 14px 28px;
+            background: var(--gradient-1);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #06ffa5 0%, #00d9f5 100%);
+            color: #000;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff006e 0%, #ff4d6d 100%);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #ffbe0b 0%, #fb5607 100%);
+            color: #000;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 20px;
+        }
+
+        th {
+            background: rgba(0,0,0,0.3);
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--success);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        tr:hover {
+            background: rgba(255,255,255,0.03);
+        }
+
+        .badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-success {
+            background: rgba(6,255,165,0.15);
+            color: var(--success);
+            border: 1px solid rgba(6,255,165,0.3);
+        }
+
+        .badge-warning {
+            background: rgba(255,190,11,0.15);
+            color: var(--warning);
+            border: 1px solid rgba(255,190,11,0.3);
+        }
+
+        .badge-danger {
+            background: rgba(255,0,110,0.15);
+            color: var(--accent);
+            border: 1px solid rgba(255,0,110,0.3);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background: var(--secondary);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+
+        .modal-large {
+            max-width: 900px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #888;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            background: var(--accent);
+            color: white;
+            transform: rotate(90deg);
+        }
+
+        .preview-image {
+            max-width: 100%;
+            border-radius: 12px;
+            margin: 20px 0;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .ocr-result {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid var(--info);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-3);
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 4px;
+        }
+
+        .excel-preview {
+            max-height: 400px;
+            overflow: auto;
+            margin: 20px 0;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .excel-preview table {
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        .excel-preview th {
+            background: rgba(58,134,255,0.2);
+            position: sticky;
+            top: 0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            padding-left: 45px;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.5;
+            font-size: 1.2rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--secondary);
+            color: white;
+            padding: 16px 28px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 2000;
+            font-weight: 600;
+            border-left: 4px solid var(--success);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.error {
+            border-left-color: var(--accent);
+        }
+
+        .chart-container {
+            height: 300px;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: var(--success);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .camera-preview {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            background: #000;
+        }
+
+        #cameraVideo {
+            width: 100%;
+            display: block;
+        }
+
+        #cameraCanvas {
+            display: none;
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .shutter-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 4px solid white;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .shutter-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(255,0,110,0.5);
+        }
+
+        .shutter-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8rem; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .feature-grid { grid-template-columns: 1fr; }
+            .modal-content { padding: 20px; }
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .tag.success {
+            background: rgba(6,255,165,0.1);
+            border-color: rgba(6,255,165,0.3);
+            color: var(--success);
+        }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .data-item {
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 12px;
+            border-left: 3px solid var(--info);
+        }
+
+        .data-label {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .data-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    
+    <header>
+        <h1>👔 服装店智能财务系统 Pro</h1>
+        <p class="subtitle">扫码 · Excel导入 · 拍照识别 · 智能记账</p>
+    </header>
+
+    <div class="container">
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">💰</div>
+                <div class="stat-label">今日收入</div>
+                <div class="stat-value" id="todayIncome">¥0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📈</div>
+                <div class="stat-label">本月收入</div>
+                <div class="stat-value" id="monthIncome">¥0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📦</div>
+                <div class="stat-label">库存总量</div>
+                <div class="stat-value" id="totalStock">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🏷️</div>
+                <div class="stat-label">商品种类</div>
+                <div class="stat-value" id="productTypes">0</div>
+            </div>
+        </div>
+
+        <!-- 标签页 -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('scan')">
+                <span>📷</span> 智能收银
+            </button>
+            <button class="tab-btn" onclick="switchTab('import')">
+                <span>📥</span> 批量导入
+            </button>
+            <button class="tab-btn" onclick="switchTab('inventory')">
+                <span>📦</span> 库存管理
+            </button>
+            <button class="tab-btn" onclick="switchTab('records')">
+                <span>📊</span> 销售记录
+            </button>
+            <button class="tab-btn" onclick="switchTab('stats')">
+                <span>📈</span> 数据分析
+            </button>
+        </div>
+
+        <!-- 智能收银 -->
+        <div id="scan" class="tab-content active">
+            <div class="card">
+                <div class="card-title">选择收银方式</div>
+                <div class="feature-grid">
+                    <div class="feature-card" onclick="startScanMode('camera')">
+                        <span class="feature-icon">📷</span>
+                        <div class="feature-title">摄像头扫码</div>
+                        <div class="feature-desc">扫描商品二维码快速收银</div>
+                    </div>
+                    <div class="feature-card" onclick="startScanMode('photo')">
+                        <span class="feature-icon">📸</span>
+                        <div class="feature-title">拍照识别</div>
+                        <div class="feature-desc">拍摄衣服标签自动识别</div>
+                    </div>
+                    <div class="feature-card" onclick="startScanMode('manual')">
+                        <span class="feature-icon">⌨️</span>
+                        <div class="feature-title">手动输入</div>
+                        <div class="feature-desc">手动输入商品编码</div>
+                    </div>
+                </div>
+
+                <!-- 摄像头扫码区域 -->
+                <div id="cameraScanArea" style="display: none;">
+                    <div class="scanner-container">
+                        <div id="reader"></div>
+                        <div class="scan-overlay">
+                            <div class="scan-line"></div>
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button class="btn btn-secondary" onclick="stopScanMode()">停止扫描</button>
+                    </div>
+                </div>
+
+                <!-- 拍照识别区域 -->
+                <div id="photoScanArea" style="display: none;">
+                    <div class="camera-preview">
+                        <video id="cameraVideo" autoplay playsinline></video>
+                        <canvas id="cameraCanvas"></canvas>
+                    </div>
+                    <div class="camera-controls">
+                        <button class="btn btn-secondary" onclick="stopCamera()">取消</button>
+                        <button class="shutter-btn" onclick="takePhoto()"></button>
+                        <button class="btn" onclick="switchCamera()">🔄 切换</button>
+                    </div>
+                    <div id="photoResult" style="display: none; margin-top: 20px;">
+                        <img id="capturedImage" class="preview-image">
+                        <div class="ocr-result" id="ocrText"></div>
+                        <div class="action-buttons">
+                            <button class="btn btn-success" onclick="confirmOCR()">✅ 确认识别结果</button>
+                            <button class="btn btn-secondary" onclick="retakePhoto()">🔄 重新拍摄</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 手动输入区域 -->
+                <div id="manualScanArea" style="display: none;">
+                    <div class="form-group">
+                        <label>输入商品编码</label>
+                        <input type="text" id="manualCode" placeholder="扫描或输入商品条形码..." onkeypress="handleManualInput(event)">
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-success" onclick="searchManualCode()">🔍 查询商品</button>
+                        <button class="btn btn-secondary" onclick="stopScanMode()">取消</button>
+                    </div>
+                </div>
+
+                <!-- 扫描结果 -->
+                <div id="scanResult" style="display: none; margin-top: 30px;">
+                    <div style="background: rgba(0,0,0,0.3); padding: 25px; border-radius: 16px; border-left: 4px solid var(--success);">
+                        <h3 style="margin-bottom: 20px; color: var(--success);">商品信息确认</h3>
+                        <div class="data-grid">
+                            <div class="data-item">
+                                <div class="data-label">商品名称</div>
+                                <div class="data-value" id="resultName">-</div>
+                            </div>
+                            <div class="data-item">
+                                <div class="data-label">单价</div>
+                                <div class="data-value" style="color: var(--accent);">¥<span id="resultPrice">-</span></div>
+                            </div>
+                            <div class="data-item">
+                                <div class="data-label">当前库存</div>
+                                <div class="data-value" id="resultStock">-</div>
+                            </div>
+                            <div class="data-item">
+                                <div class="data-label">分类</div>
+                                <div class="data-value" id="resultCategory">-</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" style="margin-top: 20px;">
+                            <label>销售数量</label>
+                            <input type="number" id="saleQuantity" value="1" min="1" style="max-width: 200px;">
+                        </div>
+                        
+                        <div class="action-buttons">
+                            <button class="btn btn-success" onclick="confirmSale()">💰 确认收款</button>
+                            <button class="btn btn-secondary" onclick="cancelScan()">取消</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 批量导入 -->
+        <div id="import" class="tab-content">
+            <div class="card">
+                <div class="card-title">📥 批量导入商品</div>
+                
+                <div class="feature-grid">
+                    <div class="feature-card" onclick="showExcelUpload()">
+                        <span class="feature-icon">📊</span>
+                        <div class="feature-title">Excel导入</div>
+                        <div class="feature-desc">上传Excel表格批量添加商品</div>
+                    </div>
+                    <div class="feature-card" onclick="showPhotoImport()">
+                        <span class="feature-icon">📸</span>
+                        <div class="feature-title">拍照入库</div>
+                        <div class="feature-desc">拍摄进货单或标签自动识别</div>
+                    </div>
+                </div>
+
+                <!-- Excel上传区域 -->
+                <div id="excelUploadArea" style="display: none;">
+                    <div class="upload-area" id="dropZone" onclick="document.getElementById('excelFile').click()">
+                        <div style="font-size: 3rem; margin-bottom: 15px;">📁</div>
+                        <h3 style="margin-bottom: 10px;">点击或拖拽上传Excel文件</h3>
+                        <p style="color: #888; font-size: 0.9rem;">支持 .xlsx, .xls, .csv 格式</p>
+                        <p style="color: #666; font-size: 0.8rem; margin-top: 10px;">
+                            表格需包含：编码、名称、分类、进价、售价、库存
+                        </p>
+                    </div>
+                    <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" onchange="handleExcelSelect(event)">
+                    
+                    <div class="excel-preview" id="excelPreview" style="display: none;">
+                        <table>
+                            <thead id="excelHead"></thead>
+                            <tbody id="excelBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="action-buttons" id="excelActions" style="display: none;">
+                        <button class="btn btn-success" onclick="confirmExcelImport()">✅ 确认导入</button>
+                        <button class="btn btn-secondary" onclick="cancelExcelImport()">取消</button>
+                    </div>
+                </div>
+
+                <!-- 拍照入库区域 -->
+                <div id="photoImportArea" style="display: none;">
+                    <div class="camera-preview">
+                        <video id="importCameraVideo" autoplay playsinline></video>
+                    </div>
+                    <div class="camera-controls">
+                        <button class="btn btn-secondary" onclick="stopImportCamera()">取消</button>
+                        <button class="shutter-btn" onclick="takeImportPhoto()"></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 导入模板下载 -->
+            <div class="card">
+                <div class="card-title">📋 导入模板</div>
+                <p style="color: #888; margin-bottom: 15px;">下载标准模板，按格式填写后上传</p>
+                <button class="btn btn-secondary" onclick="downloadTemplate()">
+                    📥 下载Excel模板
+                </button>
+            </div>
+        </div>
+
+        <!-- 库存管理 -->
+        <div id="inventory" class="tab-content">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <div class="card-title" style="margin: 0;">📦 库存管理</div>
+                    <div class="action-buttons" style="margin: 0;">
+                        <button class="btn" onclick="openAddModal()">➕ 单件入库</button>
+                        <button class="btn btn-secondary" onclick="exportInventory()">📤 导出Excel</button>
+                    </div>
+                </div>
+
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="searchInventory" placeholder="搜索商品名称、编码或分类..." oninput="renderInventory()">
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>商品编码</th>
+                                <th>商品名称</th>
+                                <th>分类</th>
+                                <th>进价</th>
+                                <th>售价</th>
+                                <th>库存</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTable"></tbody>
+                    </table>
+                </div>
+                
+                <div id="emptyInventory" class="empty-state" style="display: none;">
+                    <div class="empty-state-icon">📦</div>
+                    <p>暂无库存数据</p>
+                    <button class="btn" style="margin-top: 15px;" onclick="switchTab('import')">去导入商品</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 销售记录 -->
+        <div id="records" class="tab-content">
+            <div class="card">
+                <div class="card-title">📊 销售记录</div>
+                
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="searchRecords" placeholder="搜索商品名称..." oninput="renderRecords()">
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>商品名称</th>
+                                <th>单价</th>
+                                <th>数量</th>
+                                <th>总价</th>
+                                <th>利润</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsTable"></tbody>
+                    </table>
+                </div>
+
+                <div id="emptyRecords" class="empty-state" style="display: none;">
+                    <div class="empty-state-icon">📋</div>
+                    <p>暂无销售记录</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据分析 -->
+        <div id="stats" class="tab-content">
+            <div class="card">
+                <div class="card-title">📈 销售趋势（近7天）</div>
+                <div class="chart-container" id="salesChart">
+                    <!-- 动态生成图表 -->
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🥧 分类销售占比</div>
+                <div id="categoryStats" class="data-grid">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🏆 热销商品TOP5</div>
+                <div id="topProducts">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 单件入库模态框 -->
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeAddModal()">×</button>
+            <div class="card-title">➕ 新增商品入库</div>
+            
+            <div class="form-group">
+                <label>商品编码</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="newCode" placeholder="扫描或输入条形码" style="flex: 1;">
+                    <button class="btn btn-secondary" onclick="generateCode()">生成</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>商品名称</label>
+                <input type="text" id="newName" placeholder="例如：夏季纯棉T恤-白色-M码">
+            </div>
+
+            <div class="form-group">
+                <label>分类</label>
+                <select id="newCategory">
+                    <option value="上衣">👕 上衣</option>
+                    <option value="裤子">👖 裤子</option>
+                    <option value="裙子">👗 裙子</option>
+                    <option value="外套">🧥 外套</option>
+                    <option value="配饰">👜 配饰</option>
+                    <option value="鞋子">👟 鞋子</option>
+                    <option value="其他">📦 其他</option>
+                </select>
+            </div>
+
+            <div class="data-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                    <label>进价（元）</label>
+                    <input type="number" id="newCost" placeholder="0.00" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>售价（元）</label>
+                    <input type="number" id="newPrice" placeholder="0.00" step="0.01">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>初始库存</label>
+                <input type="number" id="newStock" placeholder="0" min="0" value="1">
+            </div>
+
+            <div id="qrPreview" style="display: none; text-align: center; margin: 20px 0; padding: 20px; background: white; border-radius: 12px;">
+                <div id="qrcode"></div>
+                <p style="color: #333; margin-top: 10px; font-size: 0.9rem;">商品二维码</p>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-success" onclick="saveProduct()">💾 保存入库</button>
+                <button class="btn btn-secondary" onclick="closeAddModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- OCR识别结果模态框 -->
+    <div id="ocrModal" class="modal">
+        <div class="modal-content modal-large">
+            <button class="close-btn" onclick="closeOCRModal()">×</button>
+            <div class="card-title">🔍 识别结果确认</div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <img id="ocrImage" class="preview-image" style="margin: 0;">
+                </div>
+                <div>
+                    <div class="ocr-result">
+                        <h4 style="margin-bottom: 15px; color: var(--info);">识别到的文字：</h4>
+                        <div id="ocrTextFull" style="white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                    
+                    <div style="margin-top: 20px;">
+                        <h4 style="margin-bottom: 15px; color: var(--success);">提取的商品信息：</h4>
+                        <div id="extractedInfo"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-buttons" style="margin-top: 30px;">
+                <button class="btn btn-success" onclick="confirmOCRImport()">✅ 确认导入</button>
+                <button class="btn btn-secondary" onclick="closeOCRModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 小票模态框 -->
+    <div id="receiptModal" class="modal">
+        <div class="modal-content" style="max-width: 320px; background: white; color: #333;">
+            <button class="close-btn" onclick="closeReceipt()" style="color: #333;">×</button>
+            <div id="receiptContent" style="font-family: 'Courier New', monospace; text-align: center; padding: 20px;">
+                <!-- 小票内容 -->
+            </div>
+            <button class="btn" style="width: 100%; margin-top: 20px;" onclick="printReceipt()">🖨️ 打印小票</button>
+        </div>
+    </div>
+
+    <!-- Toast提示 -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // 数据存储
+        let inventory = JSON.parse(localStorage.getItem('clothing_inventory_v2')) || [];
+        let records = JSON.parse(localStorage.getItem('clothing_records_v2')) || [];
+        let html5QrCode = null;
+        let currentStream = null;
+        let currentFacingMode = 'environment';
+        let currentScanProduct = null;
+        let excelData = [];
+        let ocrResult = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            updateStats();
+            renderInventory();
+            renderRecords();
+            initDragDrop();
+        });
+
+        // 标签页切换
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.closest('.tab-btn').classList.add('active');
+
+            if (tabName === 'stats') renderStats();
+            if (tabName === 'inventory') renderInventory();
+        }
+
+        // 更新统计
+        function updateStats() {
+            const today = new Date().toDateString();
+            const todaySales = records.filter(r => new Date(r.time).toDateString() === today);
+            const todayIncome = todaySales.reduce((sum, r) => sum + r.total, 0);
+            
+            const currentMonth = new Date().getMonth();
+            const monthSales = records.filter(r => new Date(r.time).getMonth() === currentMonth);
+            const monthIncome = monthSales.reduce((sum, r) => sum + r.total, 0);
+            
+            const totalStock = inventory.reduce((sum, item) => sum + item.stock, 0);
+            
+            document.getElementById('todayIncome').textContent = `¥${todayIncome.toFixed(2)}`;
+            document.getElementById('monthIncome').textContent = `¥${monthIncome.toFixed(2)}`;
+            document.getElementById('totalStock').textContent = totalStock;
+            document.getElementById('productTypes').textContent = inventory.length;
+        }
+
+        // ==================== 扫码收银功能 ====================
+        
+        function startScanMode(mode) {
+            // 重置所有区域
+            document.getElementById('cameraScanArea').style.display = 'none';
+            document.getElementById('photoScanArea').style.display = 'none';
+            document.getElementById('manualScanArea').style.display = 'none';
+            document.getElementById('scanResult').style.display = 'none';
+            
+            // 停止之前的摄像头
+            stopCamera();
+            if (html5QrCode) {
+                html5QrCode.stop().catch(() => {});
+            }
+
+            if (mode === 'camera') {
+                document.getElementById('cameraScanArea').style.display = 'block';
+                startQRScanner();
+            } else if (mode === 'photo') {
+                document.getElementById('photoScanArea').style.display = 'block';
+                startPhotoCamera();
+            } else if (mode === 'manual') {
+                document.getElementById('manualScanArea').style.display = 'block';
+                document.getElementById('manualCode').focus();
+            }
+        }
+
+        function stopScanMode() {
+            document.getElementById('cameraScanArea').style.display = 'none';
+            document.getElementById('photoScanArea').style.display = 'none';
+            document.getElementById('manualScanArea').style.display = 'none';
+            document.getElementById('scanResult').style.display = 'none';
+            stopCamera();
+            if (html5QrCode) {
+                html5QrCode.stop().catch(() => {});
+            }
+        }
+
+        // 二维码扫描
+        function startQRScanner() {
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText) => {
+                    handleCode(decodedText);
+                    stopScanMode();
+                },
+                () => {}
+            ).catch(err => {
+                showToast('摄像头启动失败，请检查权限', 'error');
+            });
+        }
+
+        // 拍照识别功能
+        async function startPhotoCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: currentFacingMode } 
+                });
+                currentStream = stream;
+                const video = document.getElementById('cameraVideo');
+                video.srcObject = stream;
+            } catch (err) {
+                showToast('无法启动摄像头', 'error');
+            }
+        }
+
+        function stopCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+        }
+
+        function switchCamera() {
+            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            stopCamera();
+            startPhotoCamera();
+        }
+
+        async function takePhoto() {
+            const video = document.getElementById('cameraVideo');
+            const canvas = document.getElementById('cameraCanvas');
+            const context = canvas.getContext('2d');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageData = canvas.toDataURL('image/jpeg');
+            document.getElementById('capturedImage').src = imageData;
+            document.getElementById('photoResult').style.display = 'block';
+            
+            // 显示加载状态
+            document.getElementById('ocrText').innerHTML = '<div class="loading"></div> 正在识别文字...';
+            
+            try {
+                const result = await Tesseract.recognize(
+                    canvas,
+                    'chi_sim+eng',
+                    { logger: m => console.log(m) }
+                );
+                
+                ocrResult = result.data.text;
+                document.getElementById('ocrText').innerHTML = `
+                    <strong>识别结果：</strong><br>
+                    <div style="margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; font-family: monospace;">
+                        ${ocrResult.replace(/\n/g, '<br>')}
+                    </div>
+                `;
+                
+                // 尝试提取商品信息
+                extractProductInfo(ocrResult);
+            } catch (err) {
+                document.getElementById('ocrText').innerHTML = '识别失败，请重试';
+            }
+        }
+
+        function extractProductInfo(text) {
+            // 简单的信息提取逻辑
+            const lines = text.split('\n').filter(l => l.trim());
+            const info = {
+                name: lines[0] || '',
+                price: text.match(/[￥¥]\s*(\d+\.?\d*)/)?.[1] || '',
+                code: text.match(/[A-Z0-9]{6,}/)?.[0] || ''
+            };
+            
+            document.getElementById('ocrText').innerHTML += `
+                <div style="margin-top: 15px; padding: 15px; background: rgba(6,255,165,0.1); border-radius: 8px; border-left: 3px solid var(--success);">
+                    <strong>提取信息：</strong><br>
+                    名称：${info.name}<br>
+                    价格：${info.price ? '¥'+info.price : '未识别'}<br>
+                    编码：${info.code || '未识别'}
+                </div>
+            `;
+        }
+
+        function retakePhoto() {
+            document.getElementById('photoResult').style.display = 'none';
+        }
+
+        function confirmOCR() {
+            if (!ocrResult) return;
+            // 这里可以添加确认后的处理逻辑
+            showToast('识别完成，请在入库页面确认');
+            stopScanMode();
+        }
+
+        // 手动输入
+        function handleManualInput(e) {
+            if (e.key === 'Enter') searchManualCode();
+        }
+
+        function searchManualCode() {
+            const code = document.getElementById('manualCode').value.trim();
+            if (code) handleCode(code);
+        }
+
+        function handleCode(code) {
+            const product = inventory.find(item => item.code === code);
+            
+            if (!product) {
+                showToast('未找到该商品，请先入库', 'error');
+                if (confirm('是否立即添加该商品？')) {
+                    openAddModal();
+                    document.getElementById('newCode').value = code;
+                }
+                return;
+            }
+
+            if (product.stock <= 0) {
+                showToast('该商品库存不足', 'error');
+                return;
+            }
+
+            currentScanProduct = product;
+            document.getElementById('resultName').textContent = product.name;
+            document.getElementById('resultPrice').textContent = product.price;
+            document.getElementById('resultStock').textContent = product.stock;
+            document.getElementById('resultCategory').textContent = product.category;
+            document.getElementById('saleQuantity').value = 1;
+            document.getElementById('saleQuantity').max = product.stock;
+            document.getElementById('scanResult').style.display = 'block';
+        }
+
+        function cancelScan() {
+            document.getElementById('scanResult').style.display = 'none';
+            document.getElementById('manualCode').value = '';
+            currentScanProduct = null;
+        }
+
+        function confirmSale() {
+            if (!currentScanProduct) return;
+            
+            const quantity = parseInt(document.getElementById('saleQuantity').value);
+            if (quantity > currentScanProduct.stock) {
+                showToast('销售数量超过库存', 'error');
+                return;
+            }
+
+            const total = currentScanProduct.price * quantity;
+            const profit = (currentScanProduct.price - currentScanProduct.cost) * quantity;
+            
+            currentScanProduct.stock -= quantity;
+            saveData();
+            
+            const record = {
+                id: Date.now(),
+                time: new Date().toISOString(),
+                productCode: currentScanProduct.code,
+                productName: currentScanProduct.name,
+                price: currentScanProduct.price,
+                cost: currentScanProduct.cost,
+                quantity: quantity,
+                total: total,
+                profit: profit
+            };
+            records.unshift(record);
+            localStorage.setItem('clothing_records_v2', JSON.stringify(records));
+            
+            showReceipt(record);
+            cancelScan();
+            updateStats();
+            renderInventory();
+            showToast(`收款成功 ¥${total.toFixed(2)}`);
+        }
+
+        // ==================== Excel导入功能 ====================
+
+        function showExcelUpload() {
+            document.getElementById('excelUploadArea').style.display = 'block';
+            document.getElementById('photoImportArea').style.display = 'none';
+        }
+
+        function showPhotoImport() {
+            document.getElementById('excelUploadArea').style.display = 'none';
+            document.getElementById('photoImportArea').style.display = 'block';
+            startImportCamera();
+        }
+
+        function initDragDrop() {
+            const dropZone = document.getElementById('dropZone');
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+            });
+
+            dropZone.addEventListener('drop', handleDrop, false);
+        }
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length) handleExcelFile(files[0]);
+        }
+
+        function handleExcelSelect(e) {
+            if (e.target.files.length) handleExcelFile(e.target.files[0]);
+        }
+
+        function handleExcelFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    
+                    if (jsonData.length < 2) {
+                        showToast('Excel文件为空或格式不正确', 'error');
+                        return;
+                    }
+
+                    excelData = jsonData;
+                    previewExcelData(jsonData);
+                } catch (err) {
+                    showToast('解析Excel失败', 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function previewExcelData(data) {
+            const headers = data[0];
+            const rows = data.slice(1, 6); // 预览前5行
+            
+            const thead = document.getElementById('excelHead');
+            const tbody = document.getElementById('excelBody');
+            
+            thead.innerHTML = '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+            tbody.innerHTML = rows.map(row => 
+                '<tr>' + row.map(cell => `<td>${cell || ''}</td>`).join('') + '</tr>'
+            ).join('');
+            
+            document.getElementById('excelPreview').style.display = 'block';
+            document.getElementById('excelActions').style.display = 'flex';
+        }
+
+        function confirmExcelImport() {
+            if (excelData.length < 2) return;
+            
+            const headers = excelData[0].map(h => h.toString().trim());
+            const rows = excelData.slice(1);
+            
+            let successCount = 0;
+            let skipCount = 0;
+            
+            rows.forEach(row => {
+                if (row.length < 2) return;
+                
+                const item = {};
+                headers.forEach((h, i) => {
+                    item[h] = row[i];
+                });
+                
+                const code = item['编码'] || item['code'] || item['条形码'] || '';
+                const name = item['名称'] || item['name'] || item['商品名称'] || '';
+                const category = item['分类'] || item['category'] || '其他';
+                const cost = parseFloat(item['进价'] || item['cost'] || 0);
+                const price = parseFloat(item['售价'] || item['price'] || 0);
+                const stock = parseInt(item['库存'] || item['stock'] || 0);
+                
+                if (!code || !name) {
+                    skipCount++;
+                    return;
+                }
+                
+                if (inventory.find(i => i.code === code)) {
+                    skipCount++;
+                    return;
+                }
+                
+                inventory.push({
+                    code,
+                    name,
+                    category,
+                    cost,
+                    price,
+                    stock
+                });
+                successCount++;
+            });
+            
+            saveData();
+            document.getElementById('excelPreview').style.display = 'none';
+            document.getElementById('excelActions').style.display = 'none';
+            document.getElementById('excelFile').value = '';
+            excelData = [];
+            
+            updateStats();
+            renderInventory();
+            showToast(`成功导入 ${successCount} 件商品，跳过 ${skipCount} 件`);
+        }
+
+        function cancelExcelImport() {
+            document.getElementById('excelPreview').style.display = 'none';
+            document.getElementById('excelActions').style.display = 'none';
+            document.getElementById('excelFile').value = '';
+            excelData = [];
+        }
+
+        function downloadTemplate() {
+            const template = [
+                ['编码', '名称', '分类', '进价', '售价', '库存'],
+                ['EX001', '示例T恤-白色-M', '上衣', 35.00, 89.00, 100],
+                ['EX002', '示例牛仔裤-蓝色-28', '裤子', 65.00, 159.00, 50]
+            ];
+            
+            const ws = XLSX.utils.aoa_to_sheet(template);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '商品模板');
+            XLSX.writeFile(wb, '商品导入模板.xlsx');
+        }
+
+        // 拍照入库摄像头
+        async function startImportCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                const video = document.getElementById('importCameraVideo');
+                video.srcObject = stream;
+            } catch (err) {
+                showToast('摄像头启动失败', 'error');
+            }
+        }
+
+        function stopImportCamera() {
+            const video = document.getElementById('importCameraVideo');
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            document.getElementById('photoImportArea').style.display = 'none';
+        }
+
+        async function takeImportPhoto() {
+            const video = document.getElementById('importCameraVideo');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            stopImportCamera();
+            
+            // 显示识别中
+            showToast('正在识别进货单...');
+            
+            try {
+                const result = await Tesseract.recognize(canvas, 'chi_sim+eng');
+                document.getElementById('ocrImage').src = canvas.toDataURL();
+                document.getElementById('ocrTextFull').textContent = result.data.text;
+                
+                // 解析进货单
+                const items = parseInvoiceText(result.data.text);
+                displayExtractedItems(items);
+                
+                document.getElementById('ocrModal').classList.add('active');
+            } catch (err) {
+                showToast('识别失败，请重试', 'error');
+            }
+        }
+
+        function parseInvoiceText(text) {
+            // 简单的进货单解析逻辑
+            const lines = text.split('\n').filter(l => l.trim());
+            const items = [];
+            
+            // 尝试匹配常见的商品信息模式
+            const patterns = [
+                /(\d+)\s+([^\d]+)\s+(\d+\.?\d*)\s+(\d+)\s+(\d+\.?\d*)/,  // 序号 名称 单价 数量 总价
+                /([A-Z0-9]+)\s+([^\n]+?)\s+(\d+\.?\d*)\s*元/,  // 编码 名称 价格
+            ];
+            
+            lines.forEach(line => {
+                patterns.forEach(pattern => {
+                    const match = line.match(pattern);
+                    if (match) {
+                        items.push({
+                            code: match[1] || 'AUTO' + Date.now(),
+                            name: match[2]?.trim() || '未命名商品',
+                            price: parseFloat(match[3]) || 0,
+                            quantity: parseInt(match[4]) || 1
+                        });
+                    }
+                });
+            });
+            
+            return items.length ? items : [{ name: '未识别到商品', text: text }];
+        }
+
+        function displayExtractedItems(items) {
+            const container = document.getElementById('extractedInfo');
+            container.innerHTML = items.map((item, i) => `
+                <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid var(--info);">
+                    <div style="font-weight: 600; margin-bottom: 5px;">${item.name}</div>
+                    ${item.price ? `<div style="font-size: 0.9rem; color: #888;">价格：¥${item.price} × ${item.quantity || 1}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function closeOCRModal() {
+            document.getElementById('ocrModal').classList.remove('active');
+        }
+
+        function confirmOCRImport() {
+            // 这里可以添加确认导入逻辑
+            closeOCRModal();
+            showToast('进货单处理完成');
+        }
+
+        // ==================== 库存管理 ====================
+
+        function renderInventory() {
+            const search = document.getElementById('searchInventory').value.toLowerCase();
+            const filtered = inventory.filter(item => 
+                item.name.toLowerCase().includes(search) || 
+                item.code.toLowerCase().includes(search) ||
+                item.category.includes(search)
+            );
+            
+            const tbody = document.getElementById('inventoryTable');
+            const emptyDiv = document.getElementById('emptyInventory');
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                emptyDiv.style.display = 'block';
+                return;
+            }
+            
+            emptyDiv.style.display = 'none';
+            tbody.innerHTML = filtered.map(item => `
+                <tr>
+                    <td><span class="tag">${item.code}</span></td>
+                    <td><strong>${item.name}</strong></td>
+                    <td>${item.category}</td>
+                    <td>¥${item.cost}</td>
+                    <td style="color: var(--accent); font-weight: 700;">¥${item.price}</td>
+                    <td>${item.stock}</td>
+                    <td><span class="badge ${item.stock > 10 ? 'badge-success' : item.stock > 0 ? 'badge-warning' : 'badge-danger'}">
+                        ${item.stock > 10 ? '充足' : item.stock > 0 ? '紧张' : '缺货'}
+                    </span></td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="editStock('${item.code}')">补货</button>
+                        <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;" onclick="deleteProduct('${item.code}')">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openAddModal() {
+            document.getElementById('addModal').classList.add('active');
+            generateCode();
+        }
+
+        function closeAddModal() {
+            document.getElementById('addModal').classList.remove('active');
+        }
+
+        function generateCode() {
+            const code = 'C' + Date.now().toString(36).toUpperCase().slice(-8);
+            document.getElementById('newCode').value = code;
+            
+            // 生成二维码预览
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, {
+                text: code,
+                width: 128,
+                height: 128,
+                colorDark: '#000',
+                colorLight: '#fff'
+            });
+            document.getElementById('qrPreview').style.display = 'block';
+        }
+
+        function saveProduct() {
+            const code = document.getElementById('newCode').value.trim();
+            const name = document.getElementById('newName').value.trim();
+            const category = document.getElementById('newCategory').value;
+            const cost = parseFloat(document.getElementById('newCost').value) || 0;
+            const price = parseFloat(document.getElementById('newPrice').value) || 0;
+            const stock = parseInt(document.getElementById('newStock').value) || 0;
+
+            if (!code || !name) {
+                showToast('请填写完整信息', 'error');
+                return;
+            }
+
+            if (inventory.find(item => item.code === code)) {
+                showToast('该编码已存在', 'error');
+                return;
+            }
+
+            inventory.push({ code, name, category, cost, price, stock, createTime: new Date().toISOString() });
+            saveData();
+            closeAddModal();
+            renderInventory();
+            updateStats();
+            showToast('商品入库成功');
+        }
+
+        function editStock(code) {
+            const item = inventory.find(i => i.code === code);
+            const add = prompt(`当前库存：${item.stock}\n请输入补货数量：`, '10');
+            if (add && !isNaN(add) && add > 0) {
+                item.stock += parseInt(add);
+                saveData();
+                renderInventory();
+                updateStats();
+                showToast(`已补货 ${add} 件`);
+            }
+        }
+
+        function deleteProduct(code) {
+            if (!confirm('确定删除该商品？此操作不可恢复')) return;
+            inventory = inventory.filter(i => i.code !== code);
+            saveData();
+            renderInventory();
+            updateStats();
+            showToast('商品已删除');
+        }
+
+        function exportInventory() {
+            const data = inventory.map(item => ({
+                '编码': item.code,
+                '名称': item.name,
+                '分类': item.category,
+                '进价': item.cost,
+                '售价': item.price,
+                '库存': item.stock,
+                '入库时间': new Date(item.createTime).toLocaleString('zh-CN')
+            }));
+            
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '库存清单');
+            XLSX.writeFile(wb, `库存清单_${new Date().toLocaleDateString()}.xlsx`);
+            showToast('导出成功');
+        }
+
+        // ==================== 销售记录 ====================
+
+        function renderRecords() {
+            const search = document.getElementById('searchRecords').value.toLowerCase();
+            const filtered = records.filter(r => r.productName.toLowerCase().includes(search));
+            
+            const tbody = document.getElementById('recordsTable');
+            const emptyDiv = document.getElementById('emptyRecords');
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                emptyDiv.style.display = 'block';
+                return;
+            }
+            
+            emptyDiv.style.display = 'none';
+            tbody.innerHTML = filtered.slice(0, 100).map(r => `
+                <tr>
+                    <td>${new Date(r.time).toLocaleString('zh-CN')}</td>
+                    <td>${r.productName}</td>
+                    <td>¥${r.price}</td>
+                    <td>${r.quantity}</td>
+                    <td style="color: var(--accent); font-weight: 700;">¥${r.total.toFixed(2)}</td>
+                    <td style="color: var(--success);">¥${r.profit.toFixed(2)}</td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="showReceiptById(${r.id})">小票</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // ==================== 小票功能 ====================
+
+        function showReceipt(record) {
+            const content = `
+                <div style="border-bottom: 2px dashed #ccc; padding-bottom: 15px; margin-bottom: 15px;">
+                    <h2 style="margin: 0; font-size: 1.3rem;">👔 服装店销售小票</h2>
+                    <p style="margin: 8px 0 0; font-size: 0.8rem; color: #666;">${new Date(record.time).toLocaleString('zh-CN')}</p>
+                    <p style="margin: 4px 0 0; font-size: 0.75rem; color: #999;">单号：${record.id.toString().slice(-8)}</p>
+                </div>
+                <div style="text-align: left; margin: 15px 0; font-size: 0.9rem;">
+                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
+                        <span>商品：</span>
+                        <span style="flex: 1; text-align: right; margin-left: 10px;">${record.productName}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
+                        <span>单价：</span>
+                        <span>¥${record.price}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
+                        <span>数量：</span>
+                        <span>${record.quantity}</span>
+                    </div>
+                    <div style="border-top: 1px dashed #ccc; margin: 12px 0; padding-top: 12px; display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem;">
+                        <span>总计：</span>
+                        <span>¥${record.total.toFixed(2)}</span>
+                    </div>
+                </div>
+                <div style="border-top: 2px dashed #ccc; padding-top: 15px; margin-top: 15px; font-size: 0.75rem; color: #999;">
+                    <p style="margin: 4px 0;">谢谢惠顾，欢迎下次光临！</p>
+                    <p style="margin: 4px 0;">退换货请凭小票7日内办理</p>
+                </div>
+            `;
+            document.getElementById('receiptContent').innerHTML = content;
+            document.getElementById('receiptModal').classList.add('active');
+        }
+
+        function showReceiptById(id) {
+            const record = records.find(r => r.id === id);
+            if (record) showReceipt(record);
+        }
+
+        function closeReceipt() {
+            document.getElementById('receiptModal').classList.remove('active');
+        }
+
+        function printReceipt() {
+            window.print();
+        }
+
+        // ==================== 数据统计 ====================
+
+        function renderStats() {
+            // 近7天销售图表
+            const days = [];
+            const sales = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+                days.push(dateStr);
+                
+                const dayTotal = records
+                    .filter(r => new Date(r.time).toDateString() === d.toDateString())
+                    .reduce((sum, r) => sum + r.total, 0);
+                sales.push(dayTotal);
+            }
+            
+            const maxSale = Math.max(...sales, 1);
+            const chartContainer = document.getElementById('salesChart');
+            chartContainer.innerHTML = `
+                <div style="display: flex; align-items: flex-end; justify-content: space-around; height: 100%; padding: 20px; gap: 8px;">
+                    ${days.map((day, i) => `
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                            <div style="font-size: 0.85rem; font-weight: 600; color: var(--success);">¥${sales[i].toFixed(0)}</div>
+                            <div style="width: 100%; background: linear-gradient(to top, var(--accent), var(--info)); border-radius: 6px 6px 0 0; transition: all 0.3s; min-height: 5px; height: ${(sales[i] / maxSale * 200) || 5}px;"></div>
+                            <div style="font-size: 0.75rem; color: #888;">${day}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            // 分类统计
+            const categories = {};
+            records.forEach(r => {
+                const item = inventory.find(i => i.code === r.productCode);
+                const cat = item ? item.category : '其他';
+                categories[cat] = (categories[cat] || 0) + r.total;
+            });
+            
+            const totalSales = Object.values(categories).reduce((a, b) => a + b, 0);
+            const catContainer = document.getElementById('categoryStats');
+            catContainer.innerHTML = Object.entries(categories).sort((a,b) => b[1] - a[1]).map(([cat, amount]) => `
+                <div class="data-item" style="border-left-color: var(--accent);">
+                    <div class="data-label">${cat}</div>
+                    <div class="data-value">¥${amount.toFixed(2)}</div>
+                    <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">${((amount/totalSales)*100).toFixed(1)}%</div>
+                </div>
+            `).join('');
+
+            // 热销商品TOP5
+            const productSales = {};
+            records.forEach(r => {
+                productSales[r.productName] = (productSales[r.productName] || 0) + r.quantity;
+            });
+            
+            const topProducts = Object.entries(productSales)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+            
+            document.getElementById('topProducts').innerHTML = topProducts.map(([name, qty], i) => `
+                <div style="display: flex; align-items: center; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 10px; margin-bottom: 10px; border-left: 3px solid ${i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--info)'};">
+                    <div style="font-size: 1.5rem; margin-right: 15px; width: 30px; text-align: center;">${i < 3 ? ['🥇','🥈','🥉'][i] : (i+1)}</div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600;">${name}</div>
+                        <div style="font-size: 0.85rem; color: #888;">销量：${qty} 件</div>
+                    </div>
+                </div>
+            `).join('') || '<div class="empty-state" style="padding: 40px;"><div class="empty-state-icon">📊</div><p>暂无销售数据</p></div>';
+        }
+
+        // ==================== 工具函数 ====================
+
+        function saveData() {
+            localStorage.setItem('clothing_inventory_v2', JSON.stringify(inventory));
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show' + (type === 'error' ? ' error' : '');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>
